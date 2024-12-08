@@ -15,11 +15,12 @@ import java.util.Locale
 class MapActivity : AppCompatActivity() {
     private lateinit var mapView: MapView
     private lateinit var viewModel: LocationViewModel
+    private var currentZoom: Double = 15.0
+    private var currentCenter: GeoPoint? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Important: initialize osmdroid configuration
         Configuration.getInstance().load(
             applicationContext,
             getPreferences(MODE_PRIVATE)
@@ -27,16 +28,17 @@ class MapActivity : AppCompatActivity() {
 
         setContentView(R.layout.activity_map)
 
-        // Initialize the MapView
         mapView = findViewById(R.id.mapView)
         mapView.setTileSource(TileSourceFactory.MAPNIK)
         mapView.setMultiTouchControls(true)
 
-        // Initialize ViewModel
         viewModel = ViewModelProvider(this)[LocationViewModel::class.java]
 
-        // Observe location data
         viewModel.recentLocations.observe(this) { locations ->
+            // Store current view state before updating
+            currentZoom = mapView.zoomLevelDouble
+            currentCenter = mapView.mapCenter as GeoPoint?
+
             // Clear existing overlays
             mapView.overlays.clear()
 
@@ -65,8 +67,13 @@ class MapActivity : AppCompatActivity() {
             // Add route line to map
             mapView.overlays.add(routeLine)
 
-            // If locations exist, center and zoom the map
-            if (locations.isNotEmpty()) {
+            // Restore previous view state
+            if (currentCenter != null) {
+                val mapController = mapView.controller
+                mapController.setCenter(currentCenter)
+                mapController.setZoom(currentZoom)
+            } else if (locations.isNotEmpty()) {
+                // If no previous state, center on last location
                 val lastLocation = locations.last()
                 val mapController = mapView.controller
                 mapController.setCenter(GeoPoint(lastLocation.latitude, lastLocation.longitude))

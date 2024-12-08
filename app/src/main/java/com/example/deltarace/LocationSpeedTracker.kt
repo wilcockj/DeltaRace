@@ -1,6 +1,9 @@
 package com.example.deltarace
 
 import android.app.Application
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
 import android.os.IBinder
@@ -13,10 +16,12 @@ import androidx.room.Dao
 import androidx.room.Insert
 import android.content.Context
 import android.location.Location
+import android.os.Build
 import android.os.Looper
 import android.os.Parcel
 import android.os.Parcelable
 import android.util.Log
+import androidx.core.app.NotificationCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.room.Query
@@ -123,8 +128,8 @@ class LocationSpeedTracker(
         LocationServices.getFusedLocationProviderClient(context)
 
     private val locationRequest = LocationRequest.create().apply {
-        interval = 5000 // 5 seconds
-        fastestInterval = 2000 // 2 seconds
+        interval = 10000 // 10 seconds
+        fastestInterval = 5000 // 5 seconds
         priority = Priority.PRIORITY_HIGH_ACCURACY
     }
 
@@ -161,7 +166,7 @@ class LocationSpeedTracker(
                 timestamp = System.currentTimeMillis(),
                 latitude = location.latitude,
                 longitude = location.longitude,
-                speed = location.speed // Speed in meters/second
+                speed = location.speed
             )
 
             database.locationSpeedDao().insertLocationSpeed(locationSpeedData)
@@ -171,37 +176,73 @@ class LocationSpeedTracker(
 }
 
 // Foreground Service for Location Tracking
-class LocationTrackingService : Service() {
+class LocationTrackingService: Service() {
     private lateinit var locationSpeedTracker: LocationSpeedTracker
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
+    private lateinit var notificationManager: NotificationManager
+    private lateinit var notificationBuilder: NotificationCompat.Builder
+
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG,"Creating location tracking service")
-        locationSpeedTracker = LocationSpeedTracker(applicationContext, serviceScope)
+        Log.d(TAG, "Creating location tracking service")
+
+        notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        createNotificationChannel()
+
+        locationSpeedTracker = LocationSpeedTracker(
+            applicationContext,
+            serviceScope
+        )
+    }
+
+    private fun createNotificationChannel() {
+        Log.d(TAG,"Creating notification to be able to track in background")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Location Tracking",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Tracking your location in the background"
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun createNotification(): Notification {
+        notificationBuilder = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Location Tracking")
+            .setContentText("Tracking your location")
+            .setSmallIcon(R.drawable.ic_launcher_foreground) // Create this icon
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true)
+
+        return notificationBuilder.build()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d(TAG, "Starting location tracking inside of onStartCommand")
+        // Start location tracking
         locationSpeedTracker.startLocationTracking()
 
-        // TODO: Create a notification for foreground service (required for modern Android versions)
-        // startForeground(NOTIFICATION_ID, createNotification())
-        Log.d(TAG,"Start command")
+        // Start foreground service with notification
+        startForeground(NOTIFICATION_ID, createNotification())
+
         return START_STICKY
     }
 
     override fun onDestroy() {
         locationSpeedTracker.stopLocationTracking()
-        serviceScope.cancel()// Cancel any ongoing coroutines
+        serviceScope.cancel()
         super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    // Optional: Create a notification for foreground service
-    // private fun createNotification(): Notification { ... }
-
     companion object {
+        private const val CHANNEL_ID = "LocationTrackingChannel"
         private const val NOTIFICATION_ID = 1
+        private const val TAG = "LocationTrackingService"
     }
 }

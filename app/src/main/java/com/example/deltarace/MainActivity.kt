@@ -16,6 +16,7 @@ import com.example.deltarace.LocationSpeedTracker
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.widget.Button
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
@@ -52,9 +53,11 @@ class MainActivity : AppCompatActivity() {
                 .setAction("Action", null).show()
         }
          */
+        checkAndRequestPermissions()
+
         // Button to start location tracking
         findViewById<Button>(R.id.btnStartTracking).setOnClickListener {
-            checkLocationPermissionsAndStartTracking()
+            startLocationTracking()
         }
 
         // Button to stop location tracking
@@ -105,70 +108,57 @@ class MainActivity : AppCompatActivity() {
         return navController.navigateUp(appBarConfiguration)
                 || super.onSupportNavigateUp()
     }
-    private fun checkLocationPermissionsAndStartTracking() {
-        // Check if location permissions are granted
-        if (hasLocationPermissions()) {
-            startLocationTracking()
-        } else {
-            // Request permissions if not granted
-            requestLocationPermissions()
+    private fun checkAndRequestPermissions() {
+        val permissions = arrayOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.ACCESS_BACKGROUND_LOCATION
+        )
+
+        val permissionsToRequest = permissions.filter { permission ->
+            ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED
+        }
+
+        if (permissionsToRequest.isNotEmpty()) {
+            ActivityCompat.requestPermissions(
+                this,
+                permissionsToRequest.toTypedArray(),
+                PERMISSION_REQUEST_CODE
+            )
         }
     }
 
-    private fun hasLocationPermissions(): Boolean {
-        return (ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED) &&
-                (ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                ) == PackageManager.PERMISSION_GRANTED)
+    private fun startLocationTracking() {
+        val intent = Intent(this, LocationTrackingService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
     }
 
-    private fun requestLocationPermissions() {
-        ActivityCompat.requestPermissions(
-            this,
-            arrayOf(
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ),
-            LOCATION_PERMISSION_REQUEST_CODE
-        )
+    private fun stopLocationTracking() {
+        val intent = Intent(this, LocationTrackingService::class.java)
+        stopService(intent)
     }
 
-    // Handle permission request results
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
+        if (requestCode == PERMISSION_REQUEST_CODE) {
             if (grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-                startLocationTracking()
+                // All permissions granted
+                Toast.makeText(this, "Permissions granted", Toast.LENGTH_SHORT).show()
             } else {
-                Toast.makeText(
-                    this,
-                    "Location permissions are required to track speed",
-                    Toast.LENGTH_LONG
-                ).show()
+                Toast.makeText(this, "Permissions required", Toast.LENGTH_SHORT).show()
             }
         }
     }
-
-    private fun startLocationTracking() {
-        Log.d(TAG, "Attempting to Start Location Tracking")
-        val intent = Intent(this, LocationTrackingService::class.java)
-        startService(intent)
-        Toast.makeText(this, "Location Tracking Started", Toast.LENGTH_SHORT).show()
-        Log.d(TAG, "Started location tracking service from main activity")
-    }
-
-    private fun stopLocationTracking() {
-        val intent = Intent(this, LocationTrackingService::class.java)
-        stopService(intent)
-        Toast.makeText(this, "Location Tracking Stopped", Toast.LENGTH_SHORT).show()
+    companion object {
+        private const val PERMISSION_REQUEST_CODE = 1001
     }
 }
 
