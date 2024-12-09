@@ -46,6 +46,13 @@ class MapActivity : AppCompatActivity() {
             val routeLine = Polyline()
             routeLine.color = 0xFF0000FF.toInt() // Blue color
 
+            if (locations.isNotEmpty()) {
+                // If no previous state, center on last location
+                val lastLocation = locations.last()
+                val mapController = mapView.controller
+                mapController.setCenter(GeoPoint(lastLocation.latitude, lastLocation.longitude))
+                mapController.setZoom(15.0)
+            }
             // Add markers and route points
             locations.forEach { location ->
                 val geoPoint = GeoPoint(location.latitude, location.longitude)
@@ -68,7 +75,7 @@ class MapActivity : AppCompatActivity() {
             mapView.overlays.add(routeLine)
 
             // Restore previous view state
-            if (currentCenter != null) {
+            if (currentCenter != GeoPoint(0,0)) {
                 val mapController = mapView.controller
                 mapController.setCenter(currentCenter)
                 mapController.setZoom(currentZoom)

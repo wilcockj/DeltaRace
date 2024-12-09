@@ -86,7 +86,7 @@ interface LocationSpeedDao {
     fun insertLocationSpeed(locationSpeedData: LocationSpeedData)
 
     // Add this method to retrieve recent locations as LiveData
-    @Query("SELECT * FROM location_speed_data ORDER BY timestamp DESC LIMIT 10")
+    @Query("SELECT * FROM location_speed_data ORDER BY timestamp DESC LIMIT 1000")
     fun getRecentLocations(): LiveData<List<LocationSpeedData>>
 }
 
